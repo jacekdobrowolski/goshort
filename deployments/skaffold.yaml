@@ -8,6 +8,8 @@ build:
     context: ..
     docker:
       dockerfile: services/links/Dockerfile
+  local:
+    useBuildkit: true
 manifests:
   rawYaml:
     - https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
