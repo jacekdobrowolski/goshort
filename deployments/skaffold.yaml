@@ -1,0 +1,16 @@
+apiVersion: skaffold/v4beta5
+kind: Config
+metadata:
+  name: goshort
+build:
+  artifacts:
+  - image: goshort/links
+    context: ..
+    docker:
+      dockerfile: services/links/Dockerfile
+manifests:
+  rawYaml:
+    - https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+    - k8s/*
+deploy:
+  kubectl:
