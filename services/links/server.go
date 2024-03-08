@@ -15,24 +15,13 @@ import (
 	"github.com/jacekdobrowolski/goshort/pkg/logging"
 )
 
-func NewServer(
-	logger *slog.Logger,
-	pgStore *PostgresStore,
-	// config *Config,
-) http.Handler {
+func NewServer(logger *slog.Logger, pgStore *PostgresStore) http.Handler {
 	mux := http.NewServeMux()
-	addRoutes(
-		mux,
-		logger,
-		pgStore,
-		// Config,
-		// commentStore,
-		// anotherStore,
-	)
+	addRoutes(mux, logger, pgStore)
+
 	var handler http.Handler = mux
 	handler = logging.Middleware(handler, logger)
-	// handler = someMiddleware2(handler)
-	// handler = someMiddleware3(handler)
+
 	return handler
 }
 
@@ -40,7 +29,7 @@ func Run(ctx context.Context, w io.Writer, env func(string) string) error {
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
 	defer cancel()
 
-	logger := slog.New(slog.NewTextHandler(w, nil))
+	logger := slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	logger.Info("Logger initialized")
 
 	requireEnv := func(variableName string) string {

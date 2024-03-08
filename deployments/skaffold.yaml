@@ -13,6 +13,6 @@ build:
 manifests:
   rawYaml:
     - https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
-    - k8s/*
+    - ../k8s/*
 deploy:
   kubectl:

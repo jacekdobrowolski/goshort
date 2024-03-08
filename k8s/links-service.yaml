@@ -33,6 +33,10 @@ spec:
           value: postgres.default.svc.cluster.local
         - name: LINKS_POSTGRES_PORT
           value: "5432"
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 3000
         resources:
           requests:
             memory: "64Mi"

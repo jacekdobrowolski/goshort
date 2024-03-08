@@ -16,6 +16,11 @@ const migrationVersion = 20240305130405
 //go:embed migrations/*.sql
 var embedMigrations embed.FS
 
+type Store interface {
+	addLink(short, url string) error
+	getOriginal(short string) (*string, error)
+}
+
 type PostgresStore struct {
 	db *sqlx.DB
 }
@@ -47,4 +52,24 @@ func NewPostgresStore(ctx context.Context, connStr string, logger *slog.Logger) 
 	return &PostgresStore{
 		db: db,
 	}, nil
+}
+
+func (pg *PostgresStore) addLink(short, url string) error {
+	_, err := pg.db.Query("INSERT INTO links (short, original) VALUES ($1, $2)", short, url)
+	return err
+}
+
+func (pg *PostgresStore) getOriginal(short string) (*string, error) {
+	rows, err := pg.db.Query("SELECT original FROM links WHERE short = $1", short)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var original string
+	for rows.Next() {
+		if err := rows.Scan(&original); err != nil {
+			return nil, err
+		}
+	}
+	return &original, nil
 }
