@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"path"
 
 	"github.com/jacekdobrowolski/goshort/pkg/base62"
@@ -57,6 +58,10 @@ func handlerCreateLink(logger *slog.Logger, store Store) http.HandlerFunc {
 			if len(requestBody.Url) == 0 {
 				logger.Debug("error parsing json request body empty url")
 				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			if _, err := url.ParseRequestURI(requestBody.Url); err != nil {
+				logger.Debug("error request body contains invalid url")
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}

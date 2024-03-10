@@ -7,9 +7,12 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path"
+	"regexp"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 type mockRow struct {
@@ -109,8 +112,42 @@ func Test_handlerAddLink(t *testing.T) {
 		handlerFunc(w, r)
 		if w.Result().StatusCode != http.StatusBadRequest {
 			t.Errorf("expected StatusCode %d got %d", http.StatusBadRequest, w.Result().StatusCode)
-		if w.Result().StatusCode != 400 {
-			t.Errorf("expected StatusCode 400 got %d", w.Result().StatusCode)
+		}
+	})
+}
+
+func Fuzz_handlerAddLink(f *testing.F) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
+	validBase62RegEx := regexp.MustCompile(`^[a-zA-Z0-9]*$`)
+	f.Add(`{"url":"http://example.com"}`, "Content-Type", "application/json")
+	f.Fuzz(func(t *testing.T, body string, headerKey string, headerValue string) {
+		store := newMockStore()
+		handlerFunc := handlerCreateLink(logger, store)
+		r := httptest.NewRequest("POST", "http://goshort.test/api/v1/links", strings.NewReader(body))
+		r.Header.Add(headerKey, headerValue)
+		w := httptest.NewRecorder()
+		handlerFunc(w, r)
+		if w.Result().StatusCode != http.StatusCreated && w.Result().StatusCode != http.StatusBadRequest {
+			t.Errorf("expected StatusCode %d or %d got %d", http.StatusCreated, http.StatusBadRequest, w.Result().StatusCode)
+		}
+		if w.Result().StatusCode == http.StatusCreated {
+			defer w.Result().Body.Close()
+			responseStruct := Link{}
+			json.NewDecoder(w.Result().Body).Decode(&responseStruct)
+			if !utf8.ValidString(responseStruct.Original) {
+				t.Errorf(`parsed value is not valid UTF-8 string %s`, responseStruct.Original)
+			}
+			_, short := path.Split(responseStruct.Short)
+			if !validBase62RegEx.MatchString(short) {
+				t.Errorf(`returned short value contains non alphanumeric characters %s`, short)
+			}
+			storedValue, err := store.getOriginal(short)
+			if err != nil {
+				t.Fatalf("cannot retrieve value %v", store.m)
+			}
+			if _, err := url.ParseRequestURI(*storedValue); err != nil {
+				t.Fatalf("stored data is not a valid URL: %s", *storedValue)
+			}
 		}
 	})
 }
