@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"net/http/httptest"
 	"path"
 	"strings"
@@ -55,8 +56,8 @@ func Test_handlerAddLink(t *testing.T) {
 		r.Header.Add("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		handlerFunc(w, r)
-		if w.Result().StatusCode != 200 {
-			t.Errorf("expected StatusCode 200 got %d", w.Result().StatusCode)
+		if w.Result().StatusCode != http.StatusCreated {
+			t.Errorf("expected StatusCode %d got %d", http.StatusCreated, w.Result().StatusCode)
 		}
 		defer w.Result().Body.Close()
 		responseStruct := Link{}
@@ -78,8 +79,8 @@ func Test_handlerAddLink(t *testing.T) {
 		r := httptest.NewRequest("POST", "/api/v1/links", nil)
 		w := httptest.NewRecorder()
 		handlerFunc(w, r)
-		if w.Result().StatusCode != 400 {
-			t.Errorf("expected StatusCode 400 got %d", w.Result().StatusCode)
+		if w.Result().StatusCode != http.StatusBadRequest {
+			t.Errorf("expected StatusCode %d got %d", http.StatusBadRequest, w.Result().StatusCode)
 		}
 	})
 	t.Run("Bad request unexpected Content-Type", func(t *testing.T) {
@@ -88,8 +89,8 @@ func Test_handlerAddLink(t *testing.T) {
 		r.Header.Add("Content-Type", "application/binary")
 		w := httptest.NewRecorder()
 		handlerFunc(w, r)
-		if w.Result().StatusCode != 400 {
-			t.Errorf("expected StatusCode 400 got %d", w.Result().StatusCode)
+		if w.Result().StatusCode != http.StatusBadRequest {
+			t.Errorf("expected StatusCode %d got %d", http.StatusBadRequest, w.Result().StatusCode)
 		}
 	})
 	t.Run("Bad request nil body", func(t *testing.T) {
@@ -97,8 +98,8 @@ func Test_handlerAddLink(t *testing.T) {
 		r.Header.Add("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		handlerFunc(w, r)
-		if w.Result().StatusCode != 400 {
-			t.Errorf("expected StatusCode 400 got %d", w.Result().StatusCode)
+		if w.Result().StatusCode != http.StatusBadRequest {
+			t.Errorf("expected StatusCode %d got %d", http.StatusBadRequest, w.Result().StatusCode)
 		}
 	})
 	t.Run("Bad request empty url in json", func(t *testing.T) {
@@ -106,6 +107,8 @@ func Test_handlerAddLink(t *testing.T) {
 		r.Header.Add("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		handlerFunc(w, r)
+		if w.Result().StatusCode != http.StatusBadRequest {
+			t.Errorf("expected StatusCode %d got %d", http.StatusBadRequest, w.Result().StatusCode)
 		if w.Result().StatusCode != 400 {
 			t.Errorf("expected StatusCode 400 got %d", w.Result().StatusCode)
 		}
@@ -123,8 +126,8 @@ func Test_handlerGetLink(t *testing.T) {
 		r.SetPathValue("short", "test")
 		w := httptest.NewRecorder()
 		handlerFunc(w, r)
-		if w.Result().StatusCode != 200 {
-			t.Errorf("expected StatusCode 200 got %d", w.Result().StatusCode)
+		if w.Result().StatusCode != http.StatusOK {
+			t.Errorf("expected StatusCode %d got %d", http.StatusOK, w.Result().StatusCode)
 		}
 		defer w.Result().Body.Close()
 		responseStruct := Link{}
@@ -138,8 +141,8 @@ func Test_handlerGetLink(t *testing.T) {
 		r.SetPathValue("short", "test2")
 		w := httptest.NewRecorder()
 		handlerFunc(w, r)
-		if w.Result().StatusCode != 404 {
-			t.Errorf("expected StatusCode 404 got %d", w.Result().StatusCode)
+		if w.Result().StatusCode != http.StatusNotFound {
+			t.Errorf("expected StatusCode %d got %d", http.StatusNotFound, w.Result().StatusCode)
 		}
 	})
 }
@@ -157,8 +160,8 @@ func Test_handlerRedirectLink(t *testing.T) {
 
 		handlerFunc(w, r)
 
-		if w.Result().StatusCode != 303 {
-			t.Errorf("expected StatusCode 303 got %d", w.Result().StatusCode)
+		if w.Result().StatusCode != http.StatusTemporaryRedirect {
+			t.Errorf("expected StatusCode %d got %d", http.StatusTemporaryRedirect, w.Result().StatusCode)
 		}
 		redirectLocation := w.Result().Header.Get("Location")
 		if redirectLocation != "http://example.com" {
@@ -170,8 +173,8 @@ func Test_handlerRedirectLink(t *testing.T) {
 		r.SetPathValue("short", "test2")
 		w := httptest.NewRecorder()
 		handlerFunc(w, r)
-		if w.Result().StatusCode != 404 {
-			t.Errorf("expected StatusCode 404 got %d", w.Result().StatusCode)
+		if w.Result().StatusCode != http.StatusNotFound {
+			t.Errorf("expected StatusCode %d got %d", http.StatusNotFound, w.Result().StatusCode)
 		}
 	})
 }

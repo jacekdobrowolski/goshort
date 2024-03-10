@@ -21,7 +21,7 @@ func addRoutes(mux *http.ServeMux, logger *slog.Logger, store Store) {
 }
 
 func handleReadyz(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(200)
+	w.WriteHeader(http.StatusOK)
 }
 
 type Link struct {
@@ -40,7 +40,7 @@ func handlerCreateLink(logger *slog.Logger, store Store) http.HandlerFunc {
 		contentType, ok := r.Header["Content-Type"]
 		if !ok {
 			logger.Debug("no Content-Type header")
-			w.WriteHeader(400)
+			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		requestBody := struct {
@@ -51,17 +51,18 @@ func handlerCreateLink(logger *slog.Logger, store Store) http.HandlerFunc {
 			decoder := json.NewDecoder(r.Body)
 			if err := decoder.Decode(&requestBody); err != nil {
 				logger.Debug("error parsing json request body no url field")
-				w.WriteHeader(400)
+				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
 			if len(requestBody.Url) == 0 {
 				logger.Debug("error parsing json request body empty url")
-				w.WriteHeader(400)
+				w.WriteHeader(http.StatusBadRequest)
+				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
 		default:
 			logger.Debug("unexpected content type", "type", contentType)
-			w.WriteHeader(400)
+			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
@@ -82,7 +83,7 @@ func handlerCreateLink(logger *slog.Logger, store Store) http.HandlerFunc {
 			Short:    path.Join(r.Host, short),
 			Original: requestBody.Url,
 		}
-		WriteJSON(w, http.StatusOK, link)
+		WriteJSON(w, http.StatusCreated, link)
 	}
 }
 
@@ -91,7 +92,7 @@ func handlerGetLink(logger *slog.Logger, store Store) http.HandlerFunc {
 		original, err := store.getOriginal(r.PathValue("short"))
 		if err != nil {
 			logger.Info("unknown link", "short", r.PathValue("short"))
-			w.WriteHeader(404)
+			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 		link := Link{
@@ -107,9 +108,9 @@ func handlerRedirect(logger *slog.Logger, store Store) http.HandlerFunc {
 		original, err := store.getOriginal(r.PathValue("short"))
 		if err != nil {
 			logger.Info("unknown link", "short", r.PathValue("short"))
-			w.WriteHeader(404)
+			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		http.Redirect(w, r, *original, http.StatusSeeOther)
+		http.Redirect(w, r, *original, http.StatusTemporaryRedirect)
 	}
 }
