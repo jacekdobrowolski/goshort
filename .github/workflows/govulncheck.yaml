@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: main
   schedule:
-    - cron: $cron-weekly
+    - cron: '0 8 * * 1'
 
 permissions:
   contents: read
