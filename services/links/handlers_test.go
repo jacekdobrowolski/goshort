@@ -64,7 +64,12 @@ func Test_handlerAddLink(t *testing.T) {
 		}
 		defer w.Result().Body.Close()
 		responseStruct := Link{}
-		json.NewDecoder(w.Result().Body).Decode(&responseStruct)
+
+		err := json.NewDecoder(w.Result().Body).Decode(&responseStruct)
+		if err != nil {
+			t.Error(err)
+		}
+
 		if responseStruct.Original != "http://example.com" {
 			t.Errorf(`expected value "http://example.com" not stored got %s`, responseStruct.Original)
 		}
@@ -133,7 +138,12 @@ func Fuzz_handlerAddLink(f *testing.F) {
 		if w.Result().StatusCode == http.StatusCreated {
 			defer w.Result().Body.Close()
 			responseStruct := Link{}
-			json.NewDecoder(w.Result().Body).Decode(&responseStruct)
+
+			err := json.NewDecoder(w.Result().Body).Decode(&responseStruct)
+			if err != nil {
+				t.Fatal("error decoding response struct:", err)
+			}
+
 			if !utf8.ValidString(responseStruct.Original) {
 				t.Errorf(`parsed value is not valid UTF-8 string %s`, responseStruct.Original)
 			}
@@ -156,7 +166,12 @@ func Test_handlerGetLink(t *testing.T) {
 	store := newMockStore()
 	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
 	handlerFunc := handlerGetLink(logger, store)
-	store.addLink("test", "http://example.com")
+
+	err := store.addLink("test", "http://example.com")
+	if err != nil {
+		t.Fatal("error adding link", err)
+	}
+
 	t.Run(`Get "test" link to http://example.com`, func(t *testing.T) {
 
 		r := httptest.NewRequest("GET", "/api/v1/links/test", nil)
@@ -168,7 +183,12 @@ func Test_handlerGetLink(t *testing.T) {
 		}
 		defer w.Result().Body.Close()
 		responseStruct := Link{}
-		json.NewDecoder(w.Result().Body).Decode(&responseStruct)
+
+		err := json.NewDecoder(w.Result().Body).Decode(&responseStruct)
+		if err != nil {
+			t.Fatal("error decoding reposnse struct:", err)
+		}
+
 		if responseStruct.Original != "http://example.com" {
 			t.Errorf(`expected value "http://example.com" not stored got %s`, responseStruct.Original)
 		}
@@ -188,7 +208,12 @@ func Test_handlerRedirectLink(t *testing.T) {
 	store := newMockStore()
 	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
 	handlerFunc := handlerRedirect(logger, store)
-	store.addLink("test", "http://example.com")
+
+	err := store.addLink("test", "http://example.com")
+	if err != nil {
+		t.Fatal("error adding link", err)
+	}
+
 	t.Run(`Get "test" link to example.com`, func(t *testing.T) {
 
 		r := httptest.NewRequest("GET", "/test", nil)

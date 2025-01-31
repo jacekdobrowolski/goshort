@@ -72,7 +72,14 @@ func handlerCreateLink(logger *slog.Logger, store Store) http.HandlerFunc {
 		}
 
 		h := md5.New()
-		io.WriteString(h, requestBody.Url)
+
+		_, err := io.WriteString(h, requestBody.Url)
+		if err != nil {
+			logger.Error("error writing to hash", "err", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
 		hash := h.Sum(nil)
 		reader := bytes.NewReader(hash[:4])
 		var x uint32
@@ -88,7 +95,13 @@ func handlerCreateLink(logger *slog.Logger, store Store) http.HandlerFunc {
 			Short:    path.Join(r.Host, short),
 			Original: requestBody.Url,
 		}
-		WriteJSON(w, http.StatusCreated, link)
+
+		err = WriteJSON(w, http.StatusCreated, link)
+		if err != nil {
+			logger.Error("error writing JSON response", "err", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	}
 }
 
@@ -104,7 +117,13 @@ func handlerGetLink(logger *slog.Logger, store Store) http.HandlerFunc {
 			Short:    path.Join(r.Host, r.PathValue("short")),
 			Original: *original,
 		}
-		WriteJSON(w, http.StatusOK, link)
+
+		err = WriteJSON(w, http.StatusOK, link)
+		if err != nil {
+			logger.Error("error writing JSON response", "err", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	}
 }
 
