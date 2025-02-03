@@ -2,6 +2,7 @@ package tracing
 
 import (
 	"context"
+	"fmt"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
@@ -12,7 +13,9 @@ import (
 )
 
 func NewExporter(ctx context.Context, conn *grpc.ClientConn) (*otlptrace.Exporter, error) {
-	return otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(conn))
+	exporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithGRPCConn(conn))
+
+	return exporter, fmt.Errorf("error creatin new exporter: %w", err)
 }
 
 func NewResource(ctx context.Context, applicationName string) (*resource.Resource, error) {
@@ -22,7 +25,7 @@ func NewResource(ctx context.Context, applicationName string) (*resource.Resourc
 		),
 	)
 
-	return res, err
+	return res, fmt.Errorf("error createing new resource %w", err)
 }
 
 func NewTraceProvider(res *resource.Resource, bsp sdktrace.SpanProcessor) *sdktrace.TracerProvider {
@@ -31,5 +34,6 @@ func NewTraceProvider(res *resource.Resource, bsp sdktrace.SpanProcessor) *sdktr
 		sdktrace.WithResource(res),
 		sdktrace.WithSpanProcessor(bsp),
 	)
+
 	return tracerProvider
 }

@@ -8,20 +8,20 @@ import (
 	"go.opentelemetry.io/otel"
 )
 
-func Middleware(h http.Handler, logger *slog.Logger) http.Handler {
+func Middleware(handler http.Handler, logger *slog.Logger) http.Handler {
 	tracer := otel.Tracer("links-tracer")
 
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logger.Info("request received", "method", r.Method, "url", r.URL)
+	return http.HandlerFunc(func(writer http.ResponseWriter, req *http.Request) {
+		logger.Info("request received", "method", req.Method, "url", req.URL)
 
-		ctx, parentSpan := tracer.Start(r.Context(), "http")
+		ctx, parentSpan := tracer.Start(req.Context(), "http")
 		defer parentSpan.End()
 
-		r = r.WithContext(ctx)
+		req = req.WithContext(ctx)
 
 		start := time.Now()
 
-		h.ServeHTTP(w, r)
+		handler.ServeHTTP(writer, req)
 
 		logger.Info("response written", "time", time.Since(start))
 	})

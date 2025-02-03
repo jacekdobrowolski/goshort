@@ -2,6 +2,7 @@ package links
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -14,11 +15,11 @@ import (
 
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/jacekdobrowolski/goshort/pkg/logging"
 	"github.com/jacekdobrowolski/goshort/pkg/tracing"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 func NewServer(logger *slog.Logger, pgStore *PostgresStore) http.Handler {
@@ -43,6 +44,7 @@ func Run(ctx context.Context, w io.Writer, env func(string) string) error {
 		if len(variable) == 0 {
 			logger.Error("required Environment variable is empty or does not exist", "variable_name", variableName)
 		}
+
 		return variable
 	}
 
@@ -66,6 +68,7 @@ func Run(ctx context.Context, w io.Writer, env func(string) string) error {
 		logger.Error("tracing init error", slog.String("err", err.Error()))
 	}
 
+	//nolint: mnd
 	httpServer := &http.Server{
 		Addr:         net.JoinHostPort("", "3000"),
 		Handler:      srv,
@@ -74,19 +77,26 @@ func Run(ctx context.Context, w io.Writer, env func(string) string) error {
 	}
 
 	go func() {
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			fmt.Fprintf(os.Stderr, "error listening and serving: %s\n", err)
 		}
+
 		logger.Info("listening", "address", httpServer.Addr)
 	}()
 
 	var wg sync.WaitGroup
+
 	wg.Add(1)
+
 	go func() {
 		defer wg.Done()
+
 		<-ctx.Done()
+
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+
 		defer cancel()
+
 		if err := httpServer.Shutdown(shutdownCtx); err != nil {
 			fmt.Fprintf(os.Stderr, "error shutting down http server: %s\n", err)
 		}
@@ -102,7 +112,10 @@ func initTracer(ctx context.Context) error {
 		return fmt.Errorf("error creating new resource %w", err)
 	}
 
-	conn, err := grpc.NewClient("collector.telemetry.svc.cluster.local:4317", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(
+		"collector.telemetry.svc.cluster.local:4317",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 	if err != nil {
 		return fmt.Errorf("error creating grpc connection %w", err)
 	}
