@@ -30,12 +30,12 @@ func Run(ctx context.Context, w io.Writer, env func(string) string) error {
 	defer cancel()
 
 	logger := slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	logger.Info("Logger initialized")
+	logger.Info("logger initialized")
 
 	requireEnv := func(variableName string) string {
 		variable := env(variableName)
 		if len(variable) == 0 {
-			logger.Error("Required Environment variable is empty or does not exist", "variable_name", variableName)
+			logger.Error("required Environment variable is empty or does not exist", "variable_name", variableName)
 		}
 		return variable
 	}

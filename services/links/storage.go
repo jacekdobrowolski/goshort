@@ -30,7 +30,7 @@ func NewPostgresStore(ctx context.Context, connStr string, logger *slog.Logger) 
 	if err != nil {
 		return nil, err
 	}
-	logger.Info("Connected to postgres store")
+	logger.Info("connected to postgres store")
 
 	goose.SetLogger(slog.NewLogLogger(logger.Handler(), slog.LevelInfo))
 	goose.SetBaseFS(embedMigrations)
