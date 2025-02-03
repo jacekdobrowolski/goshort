@@ -2,11 +2,11 @@ package links
 
 import (
 	"bytes"
-	"fmt"
 	//nolint: gosec // md5 is not used here for any security critical hashing
 	"crypto/md5"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"

@@ -13,13 +13,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jacekdobrowolski/goshort/pkg/logging"
+	"github.com/jacekdobrowolski/goshort/pkg/tracing"
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-
-	"github.com/jacekdobrowolski/goshort/pkg/logging"
-	"github.com/jacekdobrowolski/goshort/pkg/tracing"
 )
 
 func NewServer(logger *slog.Logger, pgStore *PostgresStore) http.Handler {
