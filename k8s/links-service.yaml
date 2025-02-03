@@ -48,12 +48,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: links-nodeport
+  name: links-service
 spec:
-  type: NodePort
+  type: LoadBalancer
   selector:
     name: links
   ports:
-  - port: 3000
+  - port: 8080
     targetPort: 3000
-    nodePort: 30001
