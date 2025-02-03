@@ -19,8 +19,8 @@ const migrationVersion = 20240305130405
 var embedMigrations embed.FS
 
 type Store interface {
-	addLink(short, url string) error
-	getOriginal(short string) (*string, error)
+	AddLink(short, url string) error
+	GetOriginal(short string) (*string, error)
 }
 
 type PostgresStore struct {
@@ -57,7 +57,7 @@ func NewPostgresStore(ctx context.Context, connStr string, logger *slog.Logger) 
 	}, nil
 }
 
-func (pg *PostgresStore) addLink(short, url string) error {
+func (pg *PostgresStore) AddLink(short, url string) error {
 	rows, err := pg.db.Query("INSERT INTO links (short, original) VALUES ($1, $2)", short, url)
 	if err != nil {
 		return fmt.Errorf("error query addLink: %w", err)
@@ -72,7 +72,7 @@ func (pg *PostgresStore) addLink(short, url string) error {
 	return nil
 }
 
-func (pg *PostgresStore) getOriginal(short string) (*string, error) {
+func (pg *PostgresStore) GetOriginal(short string) (*string, error) {
 	rows, err := pg.db.Query("SELECT original FROM links WHERE short = $1", short)
 	if err != nil {
 		return nil, fmt.Errorf("error executing query getOriginal: %w", err)

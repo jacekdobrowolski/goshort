@@ -18,9 +18,9 @@ import (
 
 func addRoutes(mux *http.ServeMux, logger *slog.Logger, store Store) {
 	mux.HandleFunc("GET /readyz", handleReadyz)
-	mux.HandleFunc("GET /api/v1/links/{short}", handlerGetLink(logger, store))
-	mux.HandleFunc("POST /api/v1/links", handlerCreateLink(logger, store))
-	mux.HandleFunc("GET /{short}", handlerRedirect(logger, store))
+	mux.HandleFunc("GET /api/v1/links/{short}", HandlerGetLink(logger, store))
+	mux.HandleFunc("POST /api/v1/links", HandlerCreateLink(logger, store))
+	mux.HandleFunc("GET /{short}", HandlerRedirect(logger, store))
 }
 
 func handleReadyz(w http.ResponseWriter, _ *http.Request) {
@@ -41,7 +41,7 @@ func WriteJSON(w http.ResponseWriter, status int, v any) error {
 	return fmt.Errorf("error encoding json: %w", err)
 }
 
-func handlerCreateLink(logger *slog.Logger, store Store) http.HandlerFunc {
+func HandlerCreateLink(logger *slog.Logger, store Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		contentType, ok := r.Header["Content-Type"]
 		if !ok {
@@ -56,34 +56,33 @@ func handlerCreateLink(logger *slog.Logger, store Store) http.HandlerFunc {
 			URL string `json:"url"`
 		}{}
 
-		switch contentType[0] {
-		case "application/json":
-			decoder := json.NewDecoder(r.Body)
-			if err := decoder.Decode(&requestBody); err != nil {
-				logger.Debug("error parsing json request body no url field")
-
-				w.WriteHeader(http.StatusBadRequest)
-
-				return
-			}
-
-			if len(requestBody.URL) == 0 {
-				logger.Debug("error parsing json request body empty url")
-
-				w.WriteHeader(http.StatusBadRequest)
-
-				return
-			}
-
-			if _, err := url.ParseRequestURI(requestBody.URL); err != nil {
-				logger.Debug("error request body contains invalid url")
-
-				w.WriteHeader(http.StatusBadRequest)
-
-				return
-			}
-		default:
+		if contentType[0] != "application/json" {
 			logger.Debug("unexpected content type", "type", contentType)
+
+			w.WriteHeader(http.StatusBadRequest)
+
+			return
+		}
+
+		decoder := json.NewDecoder(r.Body)
+		if err := decoder.Decode(&requestBody); err != nil {
+			logger.Debug("error parsing json request body no url field")
+
+			w.WriteHeader(http.StatusBadRequest)
+
+			return
+		}
+
+		if len(requestBody.URL) == 0 {
+			logger.Debug("error parsing json request body empty url")
+
+			w.WriteHeader(http.StatusBadRequest)
+
+			return
+		}
+
+		if _, err := url.ParseRequestURI(requestBody.URL); err != nil {
+			logger.Debug("error request body contains invalid url")
 
 			w.WriteHeader(http.StatusBadRequest)
 
@@ -114,7 +113,7 @@ func handlerCreateLink(logger *slog.Logger, store Store) http.HandlerFunc {
 
 		logger.Debug("hash generated", "url", requestBody.URL, "hash", short)
 
-		if err := store.addLink(short, requestBody.URL); err != nil {
+		if err := store.AddLink(short, requestBody.URL); err != nil {
 			logger.Error("error adding row into db", "err", err)
 		}
 
@@ -134,9 +133,9 @@ func handlerCreateLink(logger *slog.Logger, store Store) http.HandlerFunc {
 	}
 }
 
-func handlerGetLink(logger *slog.Logger, store Store) http.HandlerFunc {
+func HandlerGetLink(logger *slog.Logger, store Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		original, err := store.getOriginal(r.PathValue("short"))
+		original, err := store.GetOriginal(r.PathValue("short"))
 		if err != nil {
 			logger.Info("unknown link", "short", r.PathValue("short"))
 
@@ -161,9 +160,9 @@ func handlerGetLink(logger *slog.Logger, store Store) http.HandlerFunc {
 	}
 }
 
-func handlerRedirect(logger *slog.Logger, store Store) http.HandlerFunc {
+func HandlerRedirect(logger *slog.Logger, store Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		original, err := store.getOriginal(r.PathValue("short"))
+		original, err := store.GetOriginal(r.PathValue("short"))
 		if err != nil {
 			logger.Info("unknown link", "short", r.PathValue("short"))
 

@@ -1,4 +1,4 @@
-package links
+package links_test
 
 import (
 	"encoding/json"
@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/jacekdobrowolski/goshort/services/links"
 )
 
 type mockRow struct {
@@ -33,7 +35,7 @@ func newMockStore() *mockStore {
 
 var errShortExists = errors.New("short already exists")
 
-func (mps *mockStore) addLink(short, url string) error {
+func (mps *mockStore) AddLink(short, url string) error {
 	_, ok := mps.m[short]
 	if ok {
 		return fmt.Errorf("%w %s", errShortExists, short)
@@ -49,7 +51,7 @@ func (mps *mockStore) addLink(short, url string) error {
 
 var errShortDoesntExist = errors.New("short does not exists")
 
-func (mps *mockStore) getOriginal(short string) (*string, error) {
+func (mps *mockStore) GetOriginal(short string) (*string, error) {
 	row, ok := mps.m[short]
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", errShortDoesntExist, short)
@@ -63,7 +65,7 @@ func Test_handlerAddLink(t *testing.T) {
 
 	store := newMockStore()
 	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
-	handlerFunc := handlerCreateLink(logger, store)
+	handlerFunc := links.HandlerCreateLink(logger, store)
 
 	t.Run("Add link to http://example.com", func(t *testing.T) {
 		t.Parallel()
@@ -83,7 +85,7 @@ func Test_handlerAddLink(t *testing.T) {
 
 		defer w.Result().Body.Close()
 
-		responseStruct := Link{}
+		responseStruct := links.Link{}
 
 		err := json.NewDecoder(w.Result().Body).Decode(&responseStruct)
 		if err != nil {
@@ -96,7 +98,7 @@ func Test_handlerAddLink(t *testing.T) {
 
 		_, short := path.Split(responseStruct.Short)
 
-		storedValue, err := store.getOriginal(short)
+		storedValue, err := store.GetOriginal(short)
 		if err != nil {
 			t.Fatalf("cannot retrieve value %v", store.m)
 		}
@@ -181,7 +183,7 @@ func Fuzz_handlerAddLink(f *testing.F) {
 	f.Fuzz(func(t *testing.T, body string, headerKey string, headerValue string) {
 		store := newMockStore()
 
-		handlerFunc := handlerCreateLink(logger, store)
+		handlerFunc := links.HandlerCreateLink(logger, store)
 
 		r := httptest.NewRequest(http.MethodPost, "http://goshort.test/api/v1/links", strings.NewReader(body))
 		r.Header.Add(headerKey, headerValue)
@@ -201,7 +203,7 @@ func Fuzz_handlerAddLink(f *testing.F) {
 
 		defer w.Result().Body.Close()
 
-		responseStruct := Link{}
+		responseStruct := links.Link{}
 
 		err := json.NewDecoder(w.Result().Body).Decode(&responseStruct)
 		if err != nil {
@@ -217,7 +219,7 @@ func Fuzz_handlerAddLink(f *testing.F) {
 			t.Errorf(`returned short value contains non alphanumeric characters %s`, short)
 		}
 
-		storedValue, err := store.getOriginal(short)
+		storedValue, err := store.GetOriginal(short)
 		if err != nil {
 			t.Fatalf("cannot retrieve value %v", store.m)
 		}
@@ -233,9 +235,9 @@ func Test_handlerGetLink(t *testing.T) {
 
 	store := newMockStore()
 	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
-	handlerFunc := handlerGetLink(logger, store)
+	handlerFunc := links.HandlerGetLink(logger, store)
 
-	err := store.addLink("test", "http://example.com")
+	err := store.AddLink("test", "http://example.com")
 	if err != nil {
 		t.Fatal("error adding link", err)
 	}
@@ -256,7 +258,7 @@ func Test_handlerGetLink(t *testing.T) {
 
 		defer w.Result().Body.Close()
 
-		responseStruct := Link{}
+		responseStruct := links.Link{}
 
 		err := json.NewDecoder(w.Result().Body).Decode(&responseStruct)
 		if err != nil {
@@ -288,9 +290,9 @@ func Test_handlerRedirectLink(t *testing.T) {
 
 	store := newMockStore()
 	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
-	handlerFunc := handlerRedirect(logger, store)
+	handlerFunc := links.HandlerRedirect(logger, store)
 
-	err := store.addLink("test", "http://example.com")
+	err := store.AddLink("test", "http://example.com")
 	if err != nil {
 		t.Fatal("error adding link", err)
 	}

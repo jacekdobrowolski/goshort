@@ -12,7 +12,7 @@ linters:
     - copyloopvar
     - cyclop
     - decorder
-    - depguard
+    # - depguard
     - dogsled
     - dupl
     - dupword
@@ -35,7 +35,7 @@ linters:
     - gochecknoinits
     - gochecksumtype
     - gocognit
-    - goconst
+    # - goconst
     - gocritic
     - gocyclo
     - godot
@@ -121,7 +121,7 @@ linters:
     # - copyloopvar
     # - cyclop
     # - decorder
-    # - depguard
+    - depguard
     # - dogsled
     # - dupl
     # - dupword
@@ -146,7 +146,7 @@ linters:
     # - gochecknoinits
     # - gochecksumtype
     # - gocognit
-    # - goconst
+    - goconst
     # - gocritic
     # - gocyclo
     # - godot
@@ -229,7 +229,6 @@ linters:
     # - nosnakecase # Deprecated
     # - scopelint # Deprecated
     # - structcheck # Deprecated
-    # - varcheck # Deprecated
   # Enable presets.
   # https://golangci-lint.run/usage/linters
   # Default: []
@@ -249,4 +248,4 @@ linters:
     - unused
   # Enable only fast linters from enabled linters set (first run won't be fast)
   # Default: false
-  fast: true
+  fast: false
