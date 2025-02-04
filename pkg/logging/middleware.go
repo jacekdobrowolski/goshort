@@ -13,7 +13,21 @@ import (
 func Middleware(handler http.Handler, logger *slog.Logger) http.Handler {
 	tracer := otel.Tracer("links-tracer")
 
+	meter := otel.Meter("middleware")
+
+	historgram, err := meter.Int64Histogram("middleware_req_hist")
+	if err != nil {
+		logger.Error("error creating meter", slog.String("err", err.Error()))
+	}
+
+	counter, err := meter.Int64Counter("middleware_req_count")
+	if err != nil {
+		logger.Error("error creating meter", slog.String("err", err.Error()))
+	}
+
 	return http.HandlerFunc(func(writer http.ResponseWriter, req *http.Request) {
+		start := time.Now()
+
 		ctx, parentSpan := tracer.Start(req.Context(), "http", trace.WithNewRoot())
 		defer parentSpan.End()
 
@@ -36,12 +50,13 @@ func Middleware(handler http.Handler, logger *slog.Logger) http.Handler {
 			},
 		)
 
-		req = req.WithContext(ctx)
+		counter.Add(ctx, 1)
 
-		start := time.Now()
+		req = req.WithContext(ctx)
 
 		handler.ServeHTTP(writer, req)
 
+		historgram.Record(ctx, time.Since(start).Milliseconds())
 		logger.Debug("response written", slog.Duration("time", time.Since(start)))
 	})
 }

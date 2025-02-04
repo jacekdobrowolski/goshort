@@ -14,7 +14,7 @@ function generateRandomUrl() {
 }
 
 export let options = {
-    vus: 100,
+    vus: 200,
     duration: '30s',
 };
 

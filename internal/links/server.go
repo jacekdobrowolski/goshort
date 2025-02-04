@@ -18,7 +18,9 @@ import (
 	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
+	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"google.golang.org/grpc"
@@ -52,9 +54,10 @@ func Run(ctx context.Context, w io.Writer, env func(string) string) error {
 		return fmt.Errorf("error creating grpc connection %w", err)
 	}
 
-	logger, err := initLogger(ctx, resource, telemetryConn)
+	logger := &slog.Logger{}
+	logProvider, err := initLogProvider(ctx, resource, telemetryConn)
 	if err != nil {
-		logger := slog.New(
+		logger = slog.New(
 			slog.NewJSONHandler(
 				w,
 				&slog.HandlerOptions{
@@ -65,15 +68,36 @@ func Run(ctx context.Context, w io.Writer, env func(string) string) error {
 		)
 
 		logger.With(slog.String("application", "links"))
-		logger.Error("logger init error", slog.String("err", err.Error()))
+		logger.Error("otel logger init error", slog.String("err", err.Error()))
+	} else {
+		logger = otelslog.NewLogger("links", otelslog.WithLoggerProvider(logProvider))
+
+		logger.Info("otel logger initialized")
+
+		defer logProvider.Shutdown(context.Background())
 	}
 
-	logger.Info("logger initialized")
-
-	err = initTracer(ctx, resource, telemetryConn)
+	traceProvider, err := initTraceProvider(ctx, resource, telemetryConn)
 	if err != nil {
 		logger.Error("tracing init error", slog.String("err", err.Error()))
 	}
+
+	defer traceProvider.Shutdown(context.Background())
+
+	otel.SetTracerProvider(traceProvider)
+
+	metricExporter, err := otlpmetricgrpc.New(ctx, otlpmetricgrpc.WithGRPCConn(telemetryConn))
+	if err != nil {
+		return err
+	}
+
+	defer metricExporter.Shutdown(context.Background())
+
+	metricProvider := metric.NewMeterProvider(metric.WithResource(resource), metric.WithReader(metric.NewPeriodicReader(metricExporter)))
+
+	otel.SetMeterProvider(metricProvider)
+
+	defer metricProvider.Shutdown(context.Background())
 
 	requireEnv := func(variableName string) string {
 		variable := env(variableName)
@@ -137,11 +161,11 @@ func Run(ctx context.Context, w io.Writer, env func(string) string) error {
 	return nil
 }
 
-func initLogger(
+func initLogProvider(
 	ctx context.Context,
 	resource *resource.Resource,
 	telemetryConn *grpc.ClientConn,
-) (*slog.Logger, error) {
+) (*sdklog.LoggerProvider, error) {
 	logExporter, err := otlploggrpc.New(ctx, otlploggrpc.WithGRPCConn(telemetryConn))
 	if err != nil {
 		return nil, fmt.Errorf("error creating new otlp log exporter: %w", err)
@@ -150,25 +174,21 @@ func initLogger(
 	logProvider := sdklog.NewLoggerProvider(
 		sdklog.WithResource(resource),
 		sdklog.WithProcessor(
-			sdklog.NewSimpleProcessor(logExporter)),
+			sdklog.NewBatchProcessor(logExporter)),
 	)
 
-	logger := otelslog.NewLogger("links", otelslog.WithLoggerProvider(logProvider))
-
-	return logger, nil
+	return logProvider, nil
 }
 
-func initTracer(ctx context.Context, resource *resource.Resource, conn *grpc.ClientConn) error {
+func initTraceProvider(ctx context.Context, resource *resource.Resource, conn *grpc.ClientConn) (*sdktrace.TracerProvider, error) {
 	traceExporter, err := telemetry.NewTraceExporter(ctx, conn)
 	if err != nil {
-		return fmt.Errorf("error creating new trace exporter %w", err)
+		return nil, fmt.Errorf("error creating new trace exporter %w", err)
 	}
 
-	simpleSpanProcessor := sdktrace.NewSimpleSpanProcessor(traceExporter)
+	simpleSpanProcessor := sdktrace.NewBatchSpanProcessor(traceExporter)
 
 	traceProvider := telemetry.NewTraceProvider(resource, simpleSpanProcessor)
 
-	otel.SetTracerProvider(traceProvider)
-
-	return nil
+	return traceProvider, nil
 }
