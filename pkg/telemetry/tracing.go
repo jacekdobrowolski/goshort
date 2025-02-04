@@ -23,8 +23,9 @@ func NewTraceExporter(ctx context.Context, conn *grpc.ClientConn) (*otlptrace.Ex
 
 func NewResource(ctx context.Context, applicationName string) (*resource.Resource, error) {
 	res, err := resource.New(ctx,
+		resource.WithContainer(),
 		resource.WithAttributes(
-			attribute.String("application", applicationName),
+			attribute.String("service.name", applicationName),
 		),
 	)
 	if err != nil {

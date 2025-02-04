@@ -6,25 +6,34 @@ import (
 	"embed"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	// Postgres driver give me a break.
 	_ "github.com/lib/pq"
 	"github.com/pressly/goose/v3"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 )
 
-const migrationVersion = 20240305130405
+const (
+	migrationVersion = 20240305130405
+
+	insertTimeout = 1 * time.Second
+	selectTimeout = 200 * time.Millisecond
+)
 
 //go:embed migrations/*.sql
 var embedMigrations embed.FS
 
 type Store interface {
-	AddLink(short, url string) error
-	GetOriginal(short string) (*string, error)
+	AddLink(ctx context.Context, short, url string) error
+	GetOriginal(ctx context.Context, short string) (*string, error)
 }
 
 type PostgresStore struct {
-	db *sqlx.DB
+	db     *sqlx.DB
+	tracer trace.Tracer
 }
 
 func NewPostgresStore(ctx context.Context, connStr string, logger *slog.Logger) (*PostgresStore, error) {
@@ -53,12 +62,19 @@ func NewPostgresStore(ctx context.Context, connStr string, logger *slog.Logger) 
 	db := sqlx.NewDb(sqlDB, "postgres")
 
 	return &PostgresStore{
-		db: db,
+		db:     db,
+		tracer: otel.Tracer("links-postgres-client"),
 	}, nil
 }
 
-func (pg *PostgresStore) AddLink(short, url string) error {
-	rows, err := pg.db.Query("INSERT INTO links (short, original) VALUES ($1, $2)", short, url)
+func (pg *PostgresStore) AddLink(parentCtx context.Context, short, url string) error {
+	ctx, span := pg.tracer.Start(parentCtx, "addlink")
+	defer span.End()
+
+	ctx, cancel := context.WithTimeout(ctx, insertTimeout)
+	defer cancel()
+
+	rows, err := pg.db.QueryContext(ctx, "INSERT INTO links (short, original) VALUES ($1, $2)", short, url)
 	if err != nil {
 		return fmt.Errorf("error query addLink: %w", err)
 	}
@@ -72,8 +88,14 @@ func (pg *PostgresStore) AddLink(short, url string) error {
 	return nil
 }
 
-func (pg *PostgresStore) GetOriginal(short string) (*string, error) {
-	rows, err := pg.db.Query("SELECT original FROM links WHERE short = $1", short)
+func (pg *PostgresStore) GetOriginal(parentCtx context.Context, short string) (*string, error) {
+	ctx, span := pg.tracer.Start(parentCtx, "getoriginal")
+	defer span.End()
+
+	ctx, cancel := context.WithTimeout(ctx, selectTimeout)
+	defer cancel()
+
+	rows, err := pg.db.QueryContext(ctx, "SELECT original FROM links WHERE short = $1", short)
 	if err != nil {
 		return nil, fmt.Errorf("error executing query getOriginal: %w", err)
 	}

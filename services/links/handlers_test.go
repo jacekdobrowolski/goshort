@@ -1,6 +1,7 @@
 package links_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,7 +36,7 @@ func newMockStore() *mockStore {
 
 var errShortExists = errors.New("short already exists")
 
-func (mps *mockStore) AddLink(short, url string) error {
+func (mps *mockStore) AddLink(_ context.Context, short, url string) error {
 	_, ok := mps.m[short]
 	if ok {
 		return fmt.Errorf("%w %s", errShortExists, short)
@@ -51,7 +52,7 @@ func (mps *mockStore) AddLink(short, url string) error {
 
 var errShortDoesntExist = errors.New("short does not exists")
 
-func (mps *mockStore) GetOriginal(short string) (*string, error) {
+func (mps *mockStore) GetOriginal(_ context.Context, short string) (*string, error) {
 	row, ok := mps.m[short]
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", errShortDoesntExist, short)
@@ -98,7 +99,7 @@ func Test_handlerAddLink(t *testing.T) {
 
 		_, short := path.Split(responseStruct.Short)
 
-		storedValue, err := store.GetOriginal(short)
+		storedValue, err := store.GetOriginal(r.Context(), short)
 		if err != nil {
 			t.Fatalf("cannot retrieve value %v", store.m)
 		}
@@ -219,7 +220,7 @@ func Fuzz_handlerAddLink(f *testing.F) {
 			t.Errorf(`returned short value contains non alphanumeric characters %s`, short)
 		}
 
-		storedValue, err := store.GetOriginal(short)
+		storedValue, err := store.GetOriginal(r.Context(), short)
 		if err != nil {
 			t.Fatalf("cannot retrieve value %v", store.m)
 		}
@@ -237,7 +238,7 @@ func Test_handlerGetLink(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
 	handlerFunc := links.HandlerGetLink(logger, store)
 
-	err := store.AddLink("test", "http://example.com")
+	err := store.AddLink(context.Background(), "test", "http://example.com")
 	if err != nil {
 		t.Fatal("error adding link", err)
 	}
@@ -292,7 +293,7 @@ func Test_handlerRedirectLink(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
 	handlerFunc := links.HandlerRedirect(logger, store)
 
-	err := store.AddLink("test", "http://example.com")
+	err := store.AddLink(context.Background(), "test", "http://example.com")
 	if err != nil {
 		t.Fatal("error adding link", err)
 	}

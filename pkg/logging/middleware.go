@@ -17,11 +17,13 @@ func Middleware(handler http.Handler, logger *slog.Logger) http.Handler {
 		ctx, parentSpan := tracer.Start(req.Context(), "http", trace.WithNewRoot())
 		defer parentSpan.End()
 
-		logger.Info("request received",
-			"http.method", req.Method,
-			"http.url", req.URL.Path,
-			"trace_id", parentSpan.SpanContext().TraceID().String(),
+		logger = logger.With(
+			slog.String("http.method", req.Method),
+			slog.String("http.url", req.URL.Path),
+			slog.String("trace_id", parentSpan.SpanContext().TraceID().String()),
 		)
+
+		logger.Debug("request received")
 
 		parentSpan.SetAttributes(
 			attribute.KeyValue{
@@ -29,7 +31,7 @@ func Middleware(handler http.Handler, logger *slog.Logger) http.Handler {
 				Value: attribute.StringValue(req.URL.Path),
 			},
 			attribute.KeyValue{
-				Key:   "http.request.mehtod",
+				Key:   "http.request.method",
 				Value: attribute.StringValue(req.Method),
 			},
 		)
@@ -40,6 +42,6 @@ func Middleware(handler http.Handler, logger *slog.Logger) http.Handler {
 
 		handler.ServeHTTP(writer, req)
 
-		logger.Info("response written", "time", time.Since(start))
+		logger.Debug("response written", slog.Duration("time", time.Since(start)))
 	})
 }
