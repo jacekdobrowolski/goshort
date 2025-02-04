@@ -6,11 +6,15 @@ build:
   artifacts:
   - image: goshort/links
     docker:
-      dockerfile: services/links/Dockerfile
+      dockerfile: cmd/links/Dockerfile
+  - image: goshort/add_and_get_k6_test
+    docker:
+      dockerfile: tests/add_and_get/Dockerfile
   local:
     useBuildkit: true
 manifests:
   rawYaml:
     - k8s/*
+    - tests/*
 deploy:
   kubectl:

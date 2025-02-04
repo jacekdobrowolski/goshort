@@ -16,7 +16,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/jacekdobrowolski/goshort/services/links"
+	"github.com/jacekdobrowolski/goshort/internal/links"
 )
 
 type mockRow struct {

@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/jacekdobrowolski/goshort/services/links"
+	"github.com/jacekdobrowolski/goshort/internal/links"
+	_ "go.uber.org/automaxprocs"
 )
 
 func main() {

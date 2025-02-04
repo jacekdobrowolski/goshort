@@ -129,7 +129,7 @@ func HandlerCreateLink(logger *slog.Logger, store Store) http.HandlerFunc {
 		}
 
 		link := Link{
-			Short:    path.Join(r.Host, short),
+			Short:    "http://" + path.Join(r.Host, short),
 			Original: requestBody.URL,
 		}
 
@@ -210,7 +210,7 @@ func HandlerGetLink(logger *slog.Logger, store Store) http.HandlerFunc {
 		}
 
 		link := Link{
-			Short:    path.Join(r.Host, r.PathValue("short")),
+			Short:    "http://" + path.Join(r.Host, r.PathValue("short")),
 			Original: *original,
 		}
 
