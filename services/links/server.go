@@ -14,8 +14,12 @@ import (
 	"time"
 
 	"github.com/jacekdobrowolski/goshort/pkg/logging"
-	"github.com/jacekdobrowolski/goshort/pkg/tracing"
+	"github.com/jacekdobrowolski/goshort/pkg/telemetry"
+	"go.opentelemetry.io/contrib/bridges/otelslog"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
+	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -35,8 +39,41 @@ func Run(ctx context.Context, w io.Writer, env func(string) string) error {
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
 	defer cancel()
 
-	logger := slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	resource, err := telemetry.NewResource(ctx, "goshort")
+	if err != nil {
+		return fmt.Errorf("error creating new resource: %w", err)
+	}
+
+	telemetryConn, err := grpc.NewClient(
+		"collector.telemetry.svc.cluster.local:4317",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		return fmt.Errorf("error creating grpc connection %w", err)
+	}
+
+	logger, err := initLogger(ctx, resource, telemetryConn)
+	if err != nil {
+		logger := slog.New(
+			slog.NewJSONHandler(
+				w,
+				&slog.HandlerOptions{
+					AddSource: false,
+					Level:     slog.LevelDebug,
+				},
+			),
+		)
+
+		logger.With(slog.String("application", "links"))
+		logger.Error("logger init error", slog.String("err", err.Error()))
+	}
+
 	logger.Info("logger initialized")
+
+	err = initTracer(ctx, resource, telemetryConn)
+	if err != nil {
+		logger.Error("tracing init error", slog.String("err", err.Error()))
+	}
 
 	requireEnv := func(variableName string) string {
 		variable := env(variableName)
@@ -61,11 +98,6 @@ func Run(ctx context.Context, w io.Writer, env func(string) string) error {
 	}
 
 	srv := NewServer(logger, pgStore)
-
-	err = initTracer(ctx)
-	if err != nil {
-		logger.Error("tracing init error", slog.String("err", err.Error()))
-	}
 
 	//nolint: mnd
 	httpServer := &http.Server{
@@ -105,28 +137,36 @@ func Run(ctx context.Context, w io.Writer, env func(string) string) error {
 	return nil
 }
 
-func initTracer(ctx context.Context) error {
-	res, err := tracing.NewResource(ctx, "goshort")
+func initLogger(
+	ctx context.Context,
+	resource *resource.Resource,
+	telemetryConn *grpc.ClientConn,
+) (*slog.Logger, error) {
+	logExporter, err := otlploggrpc.New(ctx, otlploggrpc.WithGRPCConn(telemetryConn))
 	if err != nil {
-		return fmt.Errorf("error creating new resource %w", err)
+		return nil, fmt.Errorf("error creating new otlp log exporter: %w", err)
 	}
 
-	conn, err := grpc.NewClient(
-		"collector.telemetry.svc.cluster.local:4317",
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	logProvider := sdklog.NewLoggerProvider(
+		sdklog.WithResource(resource),
+		sdklog.WithProcessor(
+			sdklog.NewSimpleProcessor(logExporter)),
 	)
-	if err != nil {
-		return fmt.Errorf("error creating grpc connection %w", err)
-	}
 
-	traceExporter, err := tracing.NewExporter(ctx, conn)
+	logger := otelslog.NewLogger("links", otelslog.WithLoggerProvider(logProvider))
+
+	return logger, nil
+}
+
+func initTracer(ctx context.Context, resource *resource.Resource, conn *grpc.ClientConn) error {
+	traceExporter, err := telemetry.NewTraceExporter(ctx, conn)
 	if err != nil {
 		return fmt.Errorf("error creating new trace exporter %w", err)
 	}
 
-	batchSpanProcessor := sdktrace.NewBatchSpanProcessor(traceExporter)
+	simpleSpanProcessor := sdktrace.NewSimpleSpanProcessor(traceExporter)
 
-	traceProvider := tracing.NewTraceProvider(res, batchSpanProcessor)
+	traceProvider := telemetry.NewTraceProvider(resource, simpleSpanProcessor)
 
 	otel.SetTracerProvider(traceProvider)
 
