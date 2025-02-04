@@ -93,7 +93,12 @@ func Run(ctx context.Context, w io.Writer, env func(string) string) error {
 
 	defer metricExporter.Shutdown(context.Background())
 
-	metricProvider := metric.NewMeterProvider(metric.WithResource(resource), metric.WithReader(metric.NewPeriodicReader(metricExporter)))
+	metricProvider := metric.NewMeterProvider(
+		metric.WithResource(resource),
+		metric.WithReader(
+			metric.NewPeriodicReader(metricExporter, metric.WithInterval(10*time.Second)),
+		),
+	)
 
 	otel.SetMeterProvider(metricProvider)
 

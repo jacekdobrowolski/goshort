@@ -14,8 +14,15 @@ function generateRandomUrl() {
 }
 
 export let options = {
-    vus: 200,
-    duration: '30s',
+scenarios: {
+    contacts: {
+      executor: 'ramping-vus',
+      startVUs: 10,
+      stages: [
+        { target: 300, duration: '5m' },
+      ],
+    },
+  },
 };
 
 export default function () {

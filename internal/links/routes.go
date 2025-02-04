@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"time"
 
 	"github.com/jacekdobrowolski/goshort/pkg/base62"
 	"go.opentelemetry.io/otel"
@@ -53,9 +54,22 @@ func WriteJSON(w http.ResponseWriter, status int, v any) error {
 func HandlerCreateLink(logger *slog.Logger, store Store) http.HandlerFunc {
 	tracer := otel.Tracer("handlercreatelink")
 
+	meter := otel.Meter("handler_create")
+
+	histogram, err := meter.Int64Histogram("handler_req_hist")
+	if err != nil {
+		logger.Error("error creating meter", slog.String("err", err.Error()))
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
 		ctx, span := tracer.Start(r.Context(), "handlercreatelink")
 		defer span.End()
+
+		defer func() {
+			histogram.Record(ctx, time.Since(start).Milliseconds())
+		}()
 
 		logger = logger.With(
 			slog.String("trace_id", span.SpanContext().TraceID().String()),
@@ -190,9 +204,22 @@ func generateHash(ctx context.Context, url string, logger *slog.Logger, tracer t
 func HandlerGetLink(logger *slog.Logger, store Store) http.HandlerFunc {
 	tracer := otel.Tracer("handlercreatelink")
 
+	meter := otel.Meter("handler_get")
+
+	histogram, err := meter.Int64Histogram("handler_req_hist")
+	if err != nil {
+		logger.Error("error creating meter", slog.String("err", err.Error()))
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
 		ctx, span := tracer.Start(r.Context(), "get_link")
 		defer span.End()
+
+		defer func() {
+			histogram.Record(ctx, time.Since(start).Milliseconds())
+		}()
 
 		logger = logger.With(
 			slog.String("trace_id", span.SpanContext().TraceID().String()),
@@ -228,7 +255,20 @@ func HandlerGetLink(logger *slog.Logger, store Store) http.HandlerFunc {
 }
 
 func HandlerRedirect(logger *slog.Logger, store Store) http.HandlerFunc {
+	meter := otel.Meter("handler_redir")
+
+	histogram, err := meter.Int64Histogram("handler_redir_hist")
+	if err != nil {
+		logger.Error("error creating meter", slog.String("err", err.Error()))
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
+		defer func() {
+			histogram.Record(r.Context(), time.Since(start).Milliseconds())
+		}()
+
 		original, err := store.GetOriginal(r.Context(), r.PathValue("short"))
 		if err != nil {
 			logger.Info("unknown link", "short", r.PathValue("short"))
