@@ -19,5 +19,6 @@ jobs:
       - id: govulncheck
         uses: golang/govulncheck-action@v1
         with:
-           go-version-input: 1.23.5
+        # TODO: should propably check that in the container in which binary is build this is error prone
+           go-version-input: 1.23.6 
            go-package: ./...

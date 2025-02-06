@@ -12,6 +12,6 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Build the test Docker image
-      run: docker build . --file services/links/Dockerfile --tag links-testing:$(date +%s) --target test
+      run: docker build . --file cmd/links/Dockerfile --tag links-testing:$(date +%s) --target test
     - name: Build the final Docker image
-      run: docker build . --file services/links/Dockerfile --tag links:$(date +%s) --target final
+      run: docker build . --file cmd/links/Dockerfile --tag links:$(date +%s) --target final
