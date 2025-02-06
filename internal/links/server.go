@@ -54,44 +54,30 @@ func Run(ctx context.Context, w io.Writer, env func(string) string) error {
 		return fmt.Errorf("error creating grpc connection %w", err)
 	}
 
-	logger := &slog.Logger{}
-	logProvider, err := initLogProvider(ctx, resource, telemetryConn)
-	if err != nil {
-		logger = slog.New(
-			slog.NewJSONHandler(
-				w,
-				&slog.HandlerOptions{
-					AddSource: false,
-					Level:     slog.LevelDebug,
-				},
-			),
-		)
+	logger, shutdown := initLogger(ctx, w, resource, telemetryConn)
 
-		logger.With(slog.String("application", "links"))
-		logger.Error("otel logger init error", slog.String("err", err.Error()))
-	} else {
-		logger = otelslog.NewLogger("links", otelslog.WithLoggerProvider(logProvider))
+	defer shutdown(context.Background())
 
-		logger.Info("otel logger initialized")
-
-		defer logProvider.Shutdown(context.Background())
-	}
+	slog.SetDefault(logger)
 
 	traceProvider, err := initTraceProvider(ctx, resource, telemetryConn)
 	if err != nil {
 		logger.Error("tracing init error", slog.String("err", err.Error()))
 	}
 
-	defer traceProvider.Shutdown(context.Background())
+	defer func() {
+		err := traceProvider.Shutdown(context.Background())
+		if err != nil {
+			logger.Error("error shutingdown otel trace provider", slog.String("err", err.Error()))
+		}
+	}()
 
 	otel.SetTracerProvider(traceProvider)
 
 	metricExporter, err := otlpmetricgrpc.New(ctx, otlpmetricgrpc.WithGRPCConn(telemetryConn))
 	if err != nil {
-		return err
+		return fmt.Errorf("error starting metics exporter: %w", err)
 	}
-
-	defer metricExporter.Shutdown(context.Background())
 
 	metricProvider := metric.NewMeterProvider(
 		metric.WithResource(resource),
@@ -102,7 +88,12 @@ func Run(ctx context.Context, w io.Writer, env func(string) string) error {
 
 	otel.SetMeterProvider(metricProvider)
 
-	defer metricProvider.Shutdown(context.Background())
+	defer func() {
+		err := metricProvider.Shutdown(context.Background())
+		if err != nil {
+			logger.Error("error shutingdown otel metric provider", slog.String("err", err.Error()))
+		}
+	}()
 
 	requireEnv := func(variableName string) string {
 		variable := env(variableName)
@@ -161,19 +152,34 @@ func Run(ctx context.Context, w io.Writer, env func(string) string) error {
 			fmt.Fprintf(os.Stderr, "error shutting down http server: %s\n", err)
 		}
 	}()
+
 	wg.Wait()
 
 	return nil
 }
 
-func initLogProvider(
+func initLogger(
 	ctx context.Context,
+	w io.Writer,
 	resource *resource.Resource,
 	telemetryConn *grpc.ClientConn,
-) (*sdklog.LoggerProvider, error) {
+) (*slog.Logger, func(context.Context)) {
 	logExporter, err := otlploggrpc.New(ctx, otlploggrpc.WithGRPCConn(telemetryConn))
 	if err != nil {
-		return nil, fmt.Errorf("error creating new otlp log exporter: %w", err)
+		logger := slog.New(
+			slog.NewJSONHandler(
+				w,
+				&slog.HandlerOptions{
+					AddSource: false,
+					Level:     slog.LevelDebug,
+				},
+			),
+		)
+
+		logger.With(slog.String("application", "links"))
+		logger.Error("otel logger init error", slog.String("err", err.Error()))
+
+		return logger, func(_ context.Context) {}
 	}
 
 	logProvider := sdklog.NewLoggerProvider(
@@ -182,10 +188,26 @@ func initLogProvider(
 			sdklog.NewBatchProcessor(logExporter)),
 	)
 
-	return logProvider, nil
+	logger := otelslog.NewLogger("links", otelslog.WithLoggerProvider(logProvider))
+
+	logger.Info("otel logger initialized")
+
+	shutdown := func(ctx context.Context) {
+		err := logProvider.Shutdown(ctx)
+		if err != nil {
+			fallbackLogger := slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: slog.LevelDebug}))
+			fallbackLogger.Error("error shuting down otel log provider", slog.String("err", err.Error()))
+		}
+	}
+
+	return logger, shutdown
 }
 
-func initTraceProvider(ctx context.Context, resource *resource.Resource, conn *grpc.ClientConn) (*sdktrace.TracerProvider, error) {
+func initTraceProvider(
+	ctx context.Context,
+	resource *resource.Resource,
+	conn *grpc.ClientConn,
+) (*sdktrace.TracerProvider, error) {
 	traceExporter, err := telemetry.NewTraceExporter(ctx, conn)
 	if err != nil {
 		return nil, fmt.Errorf("error creating new trace exporter %w", err)

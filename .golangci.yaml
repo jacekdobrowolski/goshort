@@ -10,7 +10,7 @@ linters:
     - containedctx
     # - contextcheck
     - copyloopvar
-    - cyclop
+    # - cyclop
     - decorder
     # - depguard
     - dogsled
@@ -119,7 +119,7 @@ linters:
     # - containedctx
     - contextcheck
     # - copyloopvar
-    # - cyclop
+    - cyclop
     # - decorder
     - depguard
     # - dogsled
