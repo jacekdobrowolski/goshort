@@ -26,7 +26,7 @@ scenarios: {
 };
 
 export default function () {
-    const url = 'http://172.18.0.6/api/v1/links';
+    const url = `http://${__ENV.LINKS_HOST}/api/v1/links`;
     const randomUrl = generateRandomUrl();
     const payload = JSON.stringify({ url: randomUrl });
     const params = {
